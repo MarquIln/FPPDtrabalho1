@@ -4,14 +4,14 @@
 //   1.a) a operação que soma todos elementos da arvore.
 //        func soma(r *Nodo) int {...}
 //   1.b) uma operação concorrente que soma todos elementos da arvore
-//   2.a) a operação de busca de um elemento v, dizendo true se encontrou v na árvore, ou falso
-//        func busca(r* Nodo, v int) bool {}...}
-//   2.b) a operação de busca concorrente de um elemento, que informa imediatamente
-//        por um canal se encontrou o elemento (sem acabar a busca), ou informa
-//        que nao encontrou ao final da busca
+//   2.a) a operação de search de um elemento v, dizendo true se encontrou v na árvore, ou falso
+//        func search(r* Nodo, v int) bool {}...}
+//   2.b) a operação de search concorrente de um elemento, que informa imediatamente
+//        por um canal se encontrou o elemento (sem acabar a search), ou informa
+//        que nao encontrou ao final da search
 //   3.a) a operação que escreve todos pares em um canal de saidaPares e
 //        todos impares em um canal saidaImpares, e ao final avisa que acabou em um canal fin
-//        func retornaParImpar(r *Nodo, saidaP chan int, saidaI chan int, fin chan struct{}){...}
+//        func returnOddOrEven(r *Nodo, saidaP chan int, saidaI chan int, fin chan struct{}){...}
 //   3.b) a versao concorrente da operação acima, ou seja, os varios nodos sao testados
 //        concorrentemente se pares ou impares, escrevendo o valor no canal adequado
 //
@@ -63,60 +63,59 @@ func somaConcCh(r *Nodo, s chan int) {
 	}
 }
 
-func busca(r *Nodo, v int) bool {
+func search(r *Nodo, v int) bool {
 	if r != nil {
 		if r.v == v {
 			return true
 		}
-		return busca(r.e, v) || busca(r.d, v)
+		return search(r.e, v) || search(r.d, v)
 	}
 	return false
 }
 
-func buscaConc(r *Nodo, v int) bool {
+func concSearch(r *Nodo, v int) bool {
 	s := make(chan bool)
-	go buscaConcCh(r, v, s)
+	go chConcSearch(r, v, s)
 	return <-s
 }
 
-func buscaConcCh(r *Nodo, v int, s chan bool) {
+func chConcSearch(r *Nodo, v int, s chan bool) {
 	if r != nil {
 		if r.v == v {
 			s <- true
 		} else {
 			s1 := make(chan bool)
-			go buscaConcCh(r.e, v, s1)
-			go buscaConcCh(r.d, v, s1)
+			go chConcSearch(r.e, v, s1)
+			go chConcSearch(r.d, v, s1)
 			s <- (<-s1 || <-s1)
 		}
-	} else {
-		s <- false
 	}
+	s <- false
 }
 
-func retornaParImpar(r *Nodo, saidaP chan int, saidaI chan int, fin chan struct{}) {
+func returnOddOrEven(r *Nodo, saidaP chan int, saidaI chan int, fin chan struct{}) {
 	if r != nil {
 		if r.v%2 == 0 {
 			saidaP <- r.v
 		} else {
 			saidaI <- r.v
 		}
-		retornaParImpar(r.e, saidaP, saidaI, fin)
-		retornaParImpar(r.d, saidaP, saidaI, fin)
+		returnOddOrEven(r.e, saidaP, saidaI, fin)
+		returnOddOrEven(r.d, saidaP, saidaI, fin)
 	} else {
 		fin <- struct{}{}
 	}
 }
 
-func retornaParImparConc(r *Nodo, saidaP chan int, saidaI chan int, fin chan struct{}) {
+func returnConcOddOrEven(r *Nodo, saidaP chan int, saidaI chan int, fin chan struct{}) {
 	if r != nil {
 		if r.v%2 == 0 {
 			go func() { saidaP <- r.v }()
 		} else {
 			go func() { saidaI <- r.v }()
 		}
-		retornaParImparConc(r.e, saidaP, saidaI, fin)
-		retornaParImparConc(r.d, saidaP, saidaI, fin)
+		returnConcOddOrEven(r.e, saidaP, saidaI, fin)
+		returnConcOddOrEven(r.d, saidaP, saidaI, fin)
 	} else {
 		go func() { fin <- struct{}{} }()
 	}
@@ -149,45 +148,26 @@ func main() {
 	fmt.Println("SomaConc: ", somaConc(root))
 	fmt.Println()
 
-	fmt.Println("Busca 13: ", busca(root, 13))
-	fmt.Println("BuscaConc 13: ", buscaConc(root, 13))
-	fmt.Println("Busca 20: ", busca(root, 20))
-	fmt.Println("BuscaConc 20: ", buscaConc(root, 20))
+	fmt.Println("Busca 13: ", search(root, 13))
+	fmt.Println("BuscaConc 13: ", concSearch(root, 13))
+	fmt.Println("Busca 20: ", search(root, 20))
+	fmt.Println("BuscaConc 20: ", concSearch(root, 20))
 	fmt.Println()
 
+	fmt.Println("Pares e Ímpares")
 	saidaP := make(chan int)
 	saidaI := make(chan int)
 	fin := make(chan struct{})
-	go retornaParImpar(root, saidaP, saidaI, fin)
+	go returnOddOrEven(root, saidaP, saidaI, fin)
 	for {
 		select {
 		case p := <-saidaP:
 			fmt.Println("Par: ", p)
 		case i := <-saidaI:
-			fmt.Println("Impar: ", i)
+			fmt.Println("Ímpar: ", i)
 		case <-fin:
 			fmt.Println("Fim")
-			goto fim
+			return
 		}
 	}
-fim:
-	fmt.Println()
-
-	saidaP = make(chan int)
-	saidaI = make(chan int)
-	fin = make(chan struct{})
-	go retornaParImparConc(root, saidaP, saidaI, fin)
-	for {
-		select {
-		case p := <-saidaP:
-			fmt.Println("Par: ", p)
-		case i := <-saidaI:
-			fmt.Println("Impar: ", i)
-		case <-fin:
-			fmt.Println("Fim")
-			goto fim2
-		}
-	}
-fim2:
-	fmt.Println()
 }

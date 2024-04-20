@@ -7,41 +7,44 @@
 //   Nada está dito sobre como funciona a ordem de processos que batem.
 //   O ultimo leva a rolhada ...
 //   ESTE  PROGRAMA NAO FUNCIONA.    É UM RASCUNHO COM DICAS.
+// AGORA ESTA FUNCIONANDO
 
 package main
 
 import (
 	"fmt"
 	"math/rand"
+	"time"
 )
 
-const NJ = 5 // numero de jogadores
-const M = 4  // numero de cartas
+type Card string
 
-type card string // card é um strirng
+const (
+	totalPlayers = 5
+	totalCards   = 4
+)
 
-var ch [NJ]chan card // NJ canais de itens tipo card
+var (
+	playersChannels [totalPlayers]chan Card
+	newRound        chan bool
+	flapPlayerId    chan int
+)
 
-var newRound chan bool
-var flap chan int
-
-func jogador(id int, in chan card, out chan card, initalCards []card, gameBegin chan bool) {
-	hand := initalCards // estado local - as cartas na mão do jogador
-	nCards := M         // quantas cartas ele tem
-	reciviedCard := card("")
-	fmt.Printf("Jogador %d cartas na mão: %v\n", id, hand)
+func player(id int, in chan Card, out chan Card, initialCards []Card, gameBegin chan bool) {
+	hand := initialCards
+	nCards := totalCards
+	receivedCard := Card(" ")
+	fmt.Printf("Jogador %d tem essas cartas na mão: %v\n", id, hand)
 
 	<-gameBegin
-
-	bateuAntes := false
-
+	earlyFlap := false
 	for {
-		if len(flap) != 0 && !bateuAntes { //se alguém bateu e não possui o id dentro do canal
+		if len(flapPlayerId) != 0 && !earlyFlap {
 			fmt.Printf("Jogador %d bateu também!\n", id)
-			if len(flap) == NJ-1 {
-				fmt.Printf("Jogador %d foi o último a bater e perdeu o jogo.\n", id)
+			if len(flapPlayerId) == totalPlayers-1 {
+				fmt.Printf("Como, o Jogador %d foi o último a bater e ele perdeu o jogo.\n", id)
 			}
-			flap <- id
+			flapPlayerId <- id
 			return
 		}
 
@@ -49,22 +52,20 @@ func jogador(id int, in chan card, out chan card, initalCards []card, gameBegin 
 			fmt.Println(id, " joga")
 			aux := rand.Intn(nCards)
 			cardToLeave := hand[aux]
-
-			if hasSameNaipe(hand) {
+			if hasSameSuit(hand) {
 				cardToLeave = differentCard(hand)
 			}
-
-			fmt.Printf("Jogador %d escolheu a card %s\n para passar adiante", id, cardToLeave)
+			fmt.Printf("Jogador %d escolheu a Carta %s\n para passar adiante ", id, cardToLeave)
 
 			out <- cardToLeave
 			hand = append(hand[:aux], hand[aux+1:]...)
-			fmt.Printf("Nova mão do jogador (%d): %v\n", id, hand)
+			fmt.Printf("Nova mão do jogador %d: %v\n", id, hand)
 			nCards--
 
-			if hasSameNaipe(hand) && nCards == 4 {
+			if hasSameSuit(hand) && nCards == 4 {
 				fmt.Printf("Jogador %d bate!\n", id)
-				bateuAntes = true
-				flap <- id
+				earlyFlap = true
+				flapPlayerId <- id
 				newRound <- false
 			}
 
@@ -73,9 +74,9 @@ func jogador(id int, in chan card, out chan card, initalCards []card, gameBegin 
 			}
 		} else {
 			select {
-			case reciviedCard = <-in:
-				fmt.Printf("Jogador %d recebeu a card %s\n", id, reciviedCard)
-				hand = append(hand, reciviedCard)
+			case receivedCard = <-in:
+				fmt.Printf("Jogador %d recebeu a Carta %s\n", id, receivedCard)
+				hand = append(hand, receivedCard)
 				nCards++
 				fmt.Printf("Nova mão do jogador %d: %v\n", id, hand)
 			default: // wait
@@ -84,8 +85,8 @@ func jogador(id int, in chan card, out chan card, initalCards []card, gameBegin 
 	}
 }
 
-func hasSameNaipe(hand []card) bool {
-	count := make(map[card]int)
+func hasSameSuit(hand []Card) bool {
+	count := make(map[Card]int)
 	for _, n := range hand {
 		count[n]++
 		if count[n] >= 4 {
@@ -95,8 +96,8 @@ func hasSameNaipe(hand []card) bool {
 	return false
 }
 
-func differentCard(hand []card) card {
-	count := make(map[card]int)
+func differentCard(hand []Card) Card {
+	count := make(map[Card]int)
 	for _, n := range hand {
 		count[n]++
 		if count[n] == 1 {
@@ -107,32 +108,29 @@ func differentCard(hand []card) card {
 }
 
 func main() {
-	flap = make(chan int, 5)
-	for i := 0; i < NJ; i++ {
-		ch[i] = make(chan card)
+	flapPlayerId = make(chan int, 5)
+	for i := 0; i < totalPlayers; i++ {
+		playersChannels[i] = make(chan Card)
 	}
 
 	gameBegin := make(chan bool) // Canal para sinalizar o início do jogo
 	newRound = make(chan bool)   // Canal para sinalizar o início de uma nova rodada
 
-	for i := 0; i < NJ; i++ {
-		chooseCards := make([]card, 4)
+	for i := 0; i < totalPlayers; i++ {
+		chooseCards := make([]Card, 4)
 		for j := 0; j < 4; j++ {
 			randomIndex := rand.Intn(4)
-			chooseCards[j] = card(rune('A' + randomIndex))
+			chooseCards[j] = Card(rune('A' + randomIndex))
 		}
-		go jogador(i, ch[i], ch[(i+1)%NJ], chooseCards, gameBegin)
+		go player(i, playersChannels[i], playersChannels[(i+1)%totalPlayers], chooseCards, gameBegin)
 	}
-	fmt.Println()
 
-	for i := 0; i < NJ; i++ {
+	for i := 0; i < totalPlayers; i++ {
 		gameBegin <- true
 	}
 
-	initalCard := card("Joker")
-	ch[0] <- initalCard
+	initialCard := Card("Joker")
+	playersChannels[0] <- initialCard
 
-	for i := 0; i < NJ; i++ {
-		<-newRound
-	}
+	time.Sleep(1 * time.Second)
 }

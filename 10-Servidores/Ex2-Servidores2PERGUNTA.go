@@ -24,55 +24,53 @@ import (
 )
 
 const (
-	NCL  = 10
-	Pool = 10
+	NumClients = 100
+	PoolSize   = 10
 )
 
 type Request struct {
-	v      int
-	ch_ret chan int
+	value      int
+	returnChan chan int
 }
 
-// cliente
-func cliente(i int, req chan Request) {
-	var v, r int
-	my_ch := make(chan int)
+func client(id int, req chan Request, canal chan struct{}) {
+	var value, response int
+	myChannel := make(chan int)
 	for {
-		v = rand.Intn(1000)
-		req <- Request{v, my_ch}
-		r = <-my_ch
-		fmt.Println("cli:", i, " req:", v, "  resp:", r)
-		time.Sleep(time.Millisecond * time.Duration(rand.Intn(500))) // simulando um tempo de resposta variável
+		value = rand.Intn(1000)
+		req <- Request{value, myChannel}
+		response = <-myChannel
+		fmt.Println("Cliente: ", id, " Requisição: ", value, " Resposta:", response, "Processos: ", len(canal))
+		<-canal
+		time.Sleep(60 * time.Second)
 	}
 }
 
-// servidor
-func trataReq(id int, req Request) {
-	fmt.Println("                                 trataReq", id)
-	req.ch_ret <- req.v * 2
+func requestTreatment(id int, req Request) {
+	fmt.Println("                                               Tratando Requisição ", id)
+	req.returnChan <- req.value * 2
+	time.Sleep(time.Duration(rand.Intn(1000)) * time.Millisecond)
 }
 
-// servidor que dispara threads de servico
-func servidorConc(in chan Request) {
-	pool := make(chan struct{}, Pool) // canal para controlar o número de clientes concorrentes
+func concurrentServer(input chan Request, semaphore chan struct{}) {
+	var j int = 0
 	for {
-		req := <-in
-		pool <- struct{}{} // adicionar marca ao canal para ocupar um espaço no pool
-		go func(req Request) {
-			defer func() { <-pool }() // remover a marca do canal quando a goroutine terminar
-			trataReq(rand.Int(), req)
-		}(req)
+		j++
+		request := <-input
+		semaphore <- struct{}{}
+		go requestTreatment(j, request)
 	}
 }
 
+// ------------------------------------
+// Main
 func main() {
 	fmt.Println("------ Servidores - criacao dinamica -------")
-	serv_chan := make(chan Request) // canal para os pedidos
-	go servidorConc(serv_chan)
-	for i := 0; i < NCL; i++ {
-		go cliente(i, serv_chan)
+	servChan := make(chan Request, PoolSize) // CANAL POR ONDE SERVIDOR RECEBE PEDIDOS
+	sem := make(chan struct{}, PoolSize)     // Use um canal com tamanho 10
+	go concurrentServer(servChan, sem)       // LANÇA PROCESSO SERVIDOR
+	for i := 0; i < NumClients; i++ {
+		go client(i, servChan, sem)
 	}
-
-	// Mantém o programa em execução indefinidamente
-	select {}
+	<-make(chan int)
 }
