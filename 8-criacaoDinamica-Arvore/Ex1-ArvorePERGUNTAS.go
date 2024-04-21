@@ -26,15 +26,15 @@ import (
 
 type Nodo struct {
 	v int
-	e *Nodo
-	d *Nodo
+	l *Nodo
+	r *Nodo
 }
 
 func caminhaERD(r *Nodo) {
 	if r != nil {
-		caminhaERD(r.e)
+		caminhaERD(r.l)
 		fmt.Print(r.v, ", ")
-		caminhaERD(r.d)
+		caminhaERD(r.r)
 	}
 }
 
@@ -42,7 +42,7 @@ func caminhaERD(r *Nodo) {
 func soma(r *Nodo) int {
 	if r != nil {
 		//fmt.Print(r.v, ", ")
-		return r.v + soma(r.e) + soma(r.d)
+		return r.v + soma(r.l) + soma(r.r)
 	}
 	return 0
 }
@@ -55,8 +55,8 @@ func somaConc(r *Nodo) int {
 func somaConcCh(r *Nodo, s chan int) {
 	if r != nil {
 		s1 := make(chan int)
-		go somaConcCh(r.e, s1)
-		go somaConcCh(r.d, s1)
+		go somaConcCh(r.l, s1)
+		go somaConcCh(r.r, s1)
 		s <- (r.v + <-s1 + <-s1)
 	} else {
 		s <- 0
@@ -68,75 +68,106 @@ func search(r *Nodo, v int) bool {
 		if r.v == v {
 			return true
 		}
-		return search(r.e, v) || search(r.d, v)
+		return search(r.l, v) || search(r.r, v)
 	}
 	return false
 }
 
-func concSearch(r *Nodo, v int) bool {
+func concurrentSearch(r *Nodo, v int) bool {
 	s := make(chan bool)
-	go chConcSearch(r, v, s)
+	go chConcurrentSearch(r, v, s)
 	return <-s
 }
 
-func chConcSearch(r *Nodo, v int, s chan bool) {
+func chConcurrentSearch(r *Nodo, v int, s chan bool) {
 	if r != nil {
 		if r.v == v {
 			s <- true
 		} else {
 			s1 := make(chan bool)
-			go chConcSearch(r.e, v, s1)
-			go chConcSearch(r.d, v, s1)
+			go chConcurrentSearch(r.l, v, s1)
+			go chConcurrentSearch(r.r, v, s1)
 			s <- (<-s1 || <-s1)
 		}
 	}
 	s <- false
 }
 
-func returnOddOrEven(r *Nodo, saidaP chan int, saidaI chan int, fin chan struct{}) {
+func returnOddOrEven(r *Nodo, outputEven chan int, outputOdd chan int, done chan struct{}) {
 	if r != nil {
-		if r.v%2 == 0 {
-			saidaP <- r.v
-		} else {
-			saidaI <- r.v
-		}
-		returnOddOrEven(r.e, saidaP, saidaI, fin)
-		returnOddOrEven(r.d, saidaP, saidaI, fin)
-	} else {
-		fin <- struct{}{}
+		fillOutput(r, outputEven, outputOdd)
 	}
+	done <- struct{}{}
 }
 
-func returnConcOddOrEven(r *Nodo, saidaP chan int, saidaI chan int, fin chan struct{}) {
+func fillOutput(r *Nodo, outputEven chan int, outputOdd chan int) {
 	if r != nil {
+		fillOutput(r.l, outputEven, outputOdd)
 		if r.v%2 == 0 {
-			go func() { saidaP <- r.v }()
+			outputEven <- r.v
 		} else {
-			go func() { saidaI <- r.v }()
+			outputOdd <- r.v
 		}
-		returnConcOddOrEven(r.e, saidaP, saidaI, fin)
-		returnConcOddOrEven(r.d, saidaP, saidaI, fin)
-	} else {
-		go func() { fin <- struct{}{} }()
+		fillOutput(r.r, outputEven, outputOdd)
 	}
+	if r == nil {
+		return
+	}
+
+}
+
+func returnConcurrentOddOrEven(r *Nodo, outputEven chan int, outputOdd chan int, done chan struct{}) {
+	finished := make(chan bool)
+
+	go func() {
+		fillOutputConcurrent(r, outputEven, outputOdd, finished)
+		finished <- true
+	}()
+	<-finished
+	done <- struct{}{}
+}
+
+func fillOutputConcurrent(r *Nodo, outputEven chan int, outputOdd chan int, finished chan bool) {
+	if r != nil {
+		finishedLeft := make(chan bool)
+		finishedRight := make(chan bool)
+
+		go func() {
+			fillOutputConcurrent(r.l, outputEven, outputOdd, finishedLeft)
+			finishedLeft <- true
+		}()
+		go func() {
+			fillOutputConcurrent(r.r, outputEven, outputOdd, finishedRight)
+			finishedRight <- true
+		}()
+
+		if r.v%2 == 0 {
+			outputEven <- r.v
+		} else {
+			outputOdd <- r.v
+		}
+		<-finishedLeft
+		<-finishedRight
+	}
+	finished <- true
 }
 
 func main() {
 	root := &Nodo{v: 10,
-		e: &Nodo{v: 5,
-			e: &Nodo{v: 3,
-				e: &Nodo{v: 1, e: nil, d: nil},
-				d: &Nodo{v: 4, e: nil, d: nil}},
-			d: &Nodo{v: 7,
-				e: &Nodo{v: 6, e: nil, d: nil},
-				d: &Nodo{v: 8, e: nil, d: nil}}},
-		d: &Nodo{v: 15,
-			e: &Nodo{v: 13,
-				e: &Nodo{v: 12, e: nil, d: nil},
-				d: &Nodo{v: 14, e: nil, d: nil}},
-			d: &Nodo{v: 18,
-				e: &Nodo{v: 17, e: nil, d: nil},
-				d: &Nodo{v: 19, e: nil, d: nil}}}}
+		l: &Nodo{v: 5,
+			l: &Nodo{v: 3,
+				l: &Nodo{v: 1, l: nil, r: nil},
+				r: &Nodo{v: 4, l: nil, r: nil}},
+			r: &Nodo{v: 7,
+				l: &Nodo{v: 6, l: nil, r: nil},
+				r: &Nodo{v: 8, l: nil, r: nil}}},
+		r: &Nodo{v: 15,
+			l: &Nodo{v: 13,
+				l: &Nodo{v: 12, l: nil, r: nil},
+				r: &Nodo{v: 14, l: nil, r: nil}},
+			r: &Nodo{v: 18,
+				l: &Nodo{v: 17, l: nil, r: nil},
+				r: &Nodo{v: 19, l: nil, r: nil}}}}
 
 	fmt.Println()
 	fmt.Print("Valores na árvore: ")
@@ -149,9 +180,9 @@ func main() {
 	fmt.Println()
 
 	fmt.Println("Busca 13: ", search(root, 13))
-	fmt.Println("BuscaConc 13: ", concSearch(root, 13))
+	fmt.Println("BuscaConc 13: ", concurrentSearch(root, 13))
 	fmt.Println("Busca 20: ", search(root, 20))
-	fmt.Println("BuscaConc 20: ", concSearch(root, 20))
+	fmt.Println("BuscaConc 20: ", concurrentSearch(root, 20))
 	fmt.Println()
 
 	fmt.Println("Pares e Ímpares")
@@ -159,6 +190,7 @@ func main() {
 	saidaI := make(chan int)
 	fin := make(chan struct{})
 	go returnOddOrEven(root, saidaP, saidaI, fin)
+	//go returnConcurrentOddOrEven(root, saidaP, saidaI, fin)
 	for {
 		select {
 		case p := <-saidaP:
