@@ -40,9 +40,9 @@ func player(id int, in chan Card, out chan Card, initialCards []Card, gameBegin 
 	earlyFlap := false
 	for {
 		if len(flapPlayerId) != 0 && !earlyFlap {
-			fmt.Printf("Jogador %d bateu também!\n", id)
+			fmt.Printf("Jogador %d bateu!\n", id)
 			if len(flapPlayerId) == totalPlayers-1 {
-				fmt.Printf("Como, o Jogador %d foi o último a bater e ele perdeu o jogo.\n", id)
+				fmt.Printf("O Jogador %d foi o último a bater e ele perdeu o jogo.\n", id)
 			}
 			flapPlayerId <- id
 			return
@@ -55,11 +55,11 @@ func player(id int, in chan Card, out chan Card, initialCards []Card, gameBegin 
 			if hasSameSuit(hand) {
 				cardToLeave = differentCard(hand)
 			}
-			fmt.Printf("Jogador %d escolheu a Carta %s\n para passar adiante ", id, cardToLeave)
+			fmt.Printf("Jogador %d passou a carta %s\n adiante ", id, cardToLeave)
 
 			out <- cardToLeave
 			hand = append(hand[:aux], hand[aux+1:]...)
-			fmt.Printf("Nova mão do jogador %d: %v\n", id, hand)
+			fmt.Printf("Mão do jogador %d: %v\n", id, hand)
 			nCards--
 
 			if hasSameSuit(hand) && nCards == 4 {
@@ -75,7 +75,7 @@ func player(id int, in chan Card, out chan Card, initialCards []Card, gameBegin 
 		} else {
 			select {
 			case receivedCard = <-in:
-				fmt.Printf("Jogador %d recebeu a Carta %s\n", id, receivedCard)
+				fmt.Printf("Jogador %d recebeu a carta %s\n", id, receivedCard)
 				hand = append(hand, receivedCard)
 				nCards++
 				fmt.Printf("Nova mão do jogador %d: %v\n", id, hand)

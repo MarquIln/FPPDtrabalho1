@@ -9,8 +9,8 @@
 //   2.b) a operação de search concorrente de um elemento, que informa imediatamente
 //        por um canal se encontrou o elemento (sem acabar a search), ou informa
 //        que nao encontrou ao final da search
-//   3.a) a operação que escreve todos pares em um canal de saidaPares e
-//        todos impares em um canal saidaImpares, e ao final avisa que acabou em um canal fin
+//   3.a) a operação que escreve todos pares em um canal de saidaPares e todos
+//        impares em um canal saidaImpares, e ao final avisa que acabou em um canal fin
 //        func returnOddOrEven(r *Nodo, saidaP chan int, saidaI chan int, fin chan struct{}){...}
 //   3.b) a versao concorrente da operação acima, ou seja, os varios nodos sao testados
 //        concorrentemente se pares ou impares, escrevendo o valor no canal adequado

@@ -42,13 +42,13 @@ func client(id int, req chan Request, canal chan struct{}) {
 		response = <-clientCanal
 		fmt.Println("Cliente: ", id, " Requisição: ", value, " Resposta:", response, "Processos: ", len(canal))
 		<-canal
-		time.Sleep(60 * time.Second)
+		time.Sleep(1)
 	}
 }
 
 func requestTreatment(id int, req Request) {
-	fmt.Println("                                               Tratando Requisição do cliente: ", id)
-	req.returnChan <- req.value * 2
+	fmt.Println("Tratando Requisição do cliente: ", req.value, " Processo: ", id)
+	req.returnChan <- req.value
 	time.Sleep(time.Duration(rand.Intn(1000)) * time.Millisecond)
 }
 
