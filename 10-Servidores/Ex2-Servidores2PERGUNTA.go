@@ -42,18 +42,18 @@ func client(id int, req chan Request, canal chan struct{}) {
 		response = <-clientCanal
 		fmt.Println("Cliente: ", id, " Requisição: ", value, " Resposta:", response, "Processos: ", len(canal))
 		<-canal
-		time.Sleep(1)
+		//time.Sleep(60 * time.Second)
 	}
 }
 
 func requestTreatment(id int, req Request) {
 	fmt.Println("Tratando Requisição do cliente: ", req.value, " Processo: ", id)
-	req.returnChan <- req.value
+	req.returnChan <- req.value * 2
 	time.Sleep(time.Duration(rand.Intn(1000)) * time.Millisecond)
 }
 
 func concurrentServer(input chan Request, canal chan struct{}) {
-	var j int = 0
+	j := 0
 	for {
 		j++
 		request := <-input
