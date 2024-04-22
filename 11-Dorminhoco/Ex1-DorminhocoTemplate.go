@@ -113,14 +113,14 @@ func main() {
 		playersChannels[i] = make(chan Card)
 	}
 
-	gameBegin := make(chan bool) // Canal para sinalizar o início do jogo
-	newRound = make(chan bool)   // Canal para sinalizar o início de uma nova rodada
+	gameBegin := make(chan bool)
+	newRound = make(chan bool)
 
 	for i := 0; i < totalPlayers; i++ {
 		chooseCards := make([]Card, 4)
 		for j := 0; j < 4; j++ {
 			randomIndex := rand.Intn(4)
-			chooseCards[j] = Card(rune('A' + randomIndex))
+			chooseCards[j] = Card(rune('D' + randomIndex))
 		}
 		go player(i, playersChannels[i], playersChannels[(i+1)%totalPlayers], chooseCards, gameBegin)
 	}

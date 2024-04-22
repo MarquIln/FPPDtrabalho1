@@ -189,8 +189,8 @@ func main() {
 	saidaP := make(chan int)
 	saidaI := make(chan int)
 	fin := make(chan struct{})
-	go returnOddOrEven(root, saidaP, saidaI, fin)
-	//go returnConcurrentOddOrEven(root, saidaP, saidaI, fin)
+	// go returnOddOrEven(root, saidaP, saidaI, fin)
+	go returnConcurrentOddOrEven(root, saidaP, saidaI, fin)
 	for {
 		select {
 		case p := <-saidaP:

@@ -35,11 +35,11 @@ type Request struct {
 
 func client(id int, req chan Request, canal chan struct{}) {
 	var value, response int
-	myChannel := make(chan int)
+	clientCanal := make(chan int)
 	for {
 		value = rand.Intn(1000)
-		req <- Request{value, myChannel}
-		response = <-myChannel
+		req <- Request{value, clientCanal}
+		response = <-clientCanal
 		fmt.Println("Cliente: ", id, " Requisição: ", value, " Resposta:", response, "Processos: ", len(canal))
 		<-canal
 		time.Sleep(60 * time.Second)
@@ -47,17 +47,17 @@ func client(id int, req chan Request, canal chan struct{}) {
 }
 
 func requestTreatment(id int, req Request) {
-	fmt.Println("                                               Tratando Requisição ", id)
+	fmt.Println("                                               Tratando Requisição do cliente: ", id)
 	req.returnChan <- req.value * 2
 	time.Sleep(time.Duration(rand.Intn(1000)) * time.Millisecond)
 }
 
-func concurrentServer(input chan Request, semaphore chan struct{}) {
+func concurrentServer(input chan Request, canal chan struct{}) {
 	var j int = 0
 	for {
 		j++
 		request := <-input
-		semaphore <- struct{}{}
+		canal <- struct{}{}
 		go requestTreatment(j, request)
 	}
 }
@@ -66,11 +66,11 @@ func concurrentServer(input chan Request, semaphore chan struct{}) {
 // Main
 func main() {
 	fmt.Println("------ Servidores - criacao dinamica -------")
-	servChan := make(chan Request, PoolSize) // CANAL POR ONDE SERVIDOR RECEBE PEDIDOS
-	sem := make(chan struct{}, PoolSize)     // Use um canal com tamanho 10
-	go concurrentServer(servChan, sem)       // LANÇA PROCESSO SERVIDOR
+	servChan := make(chan Request, PoolSize)
+	canal := make(chan struct{}, PoolSize)
+	go concurrentServer(servChan, canal)
 	for i := 0; i < NumClients; i++ {
-		go client(i, servChan, sem)
+		go client(i, servChan, canal)
 	}
 	<-make(chan int)
 }
